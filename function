@@ -1,0 +1,239 @@
+var open = msg.payload; // Open or Close / true or false
+var date_ut = new Date().setHours(0, 0, 0, 0);// Unixtime without time
+//var date_ut = 1650232800000
+var date = new Date(date_ut); //Date in String-Time
+var year = date.getFullYear();
+
+// Check Schaltjahr 
+const date29_2 = new Date(year, 1, 29);
+let schaltjahr = (1 == date29_2.getMonth()); //check schaltjahr JS
+let schaltjahr1 = ((year % 4 == 0 && year % 100 != 0)) || (year % 400 == 0); //check schaltjahr rechnerisch
+sj = schaltjahr && schaltjahr1; // sind beide true
+var sj = (sj === true) ? 1 : 0; //sind beide true (schaltjahr = 1) / ansonsten 0
+
+var newyear = (new Date(year, 0, 1));
+var newyear_ut = +new Date(newyear);
+
+if (global.get("feiertage") === undefined) {
+    check_eastern();
+} else if (context.get("year") === year) {
+    checkHolidays()
+} else {
+    check_eastern();
+}
+
+return;
+
+function check_eastern() {
+    var feiertage_ut = [];
+
+    // Check Ostersonntag
+    //***************Osterformel***************
+    //******************START******************
+    var f = Math.floor,
+        // Golden Number - 1
+        G = year % 19,
+        C = f(year / 100),
+        // related to Epact
+        H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
+        // number of days from 21 March to the Paschal full moon
+        I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)),
+        // weekday for the Paschal full moon
+        J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7,
+        // number of days from 21 March to the Sunday on or before the Paschal full moon
+        L = I - J,
+        month = 3 + f((L + 40) / 44),
+        day = L + 28 - 31 * f(month / 4),
+        month = month - 1;
+    //*******************END*******************
+
+    var eastern = new Date(year, month, day); //Eastern in String-Time
+    context.set("Ostersonntag", +new Date(eastern));
+    save_feiertage(feiertage_ut, eastern);
+    return;
+}
+
+function save_feiertage(feiertage_ut, eastern) {
+
+    let jahresbegin = new Date(year, 0, 1);
+    let berchtoldstag = new Date(year, 0, 2);
+    let nationalfeiertag = new Date(year, 7, 1);
+    let allerheiligen = new Date(year, 10, 1);
+    let weinachten = new Date(year, 11, 25);
+    let stephanstag = new Date(year, 11, 26);
+
+    let karfreitag = new Date(eastern);
+    karfreitag = karfreitag.addDays(-2);
+
+    let ostermontag = new Date(eastern);
+    ostermontag = ostermontag.addDays(1);
+
+    let auffahrt = new Date(eastern);
+    auffahrt = auffahrt.addDays(39);
+
+    let pfingstmontag = new Date(eastern);
+    pfingstmontag = pfingstmontag.addDays(50);
+
+    // Check Näfelserfahrt
+    //***************erster Do im April != Woche wie Karfreitag***************
+    //******************START******************
+
+    //Check first Day of April
+    var firstDayApril = new Date(year, 3, 1);
+    var weekDayNr = firstDayApril.getDay(); // Ausgabe Wochentag als Nr
+    var daysTillThursday = (weekDayNr > 4) ? ((6 - weekDayNr) + 5) : (4 - weekDayNr); // Tage bis Donnerstag
+    //Check erster Do im April
+    var firstThursday = firstDayApril.addDays(daysTillThursday);
+
+    //Check Kalenderwoche vom ersten Donnerstag im April
+    var firstThursday_copy = new Date(firstThursday);
+    firstThursday_copy.setHours(0, 0, 0, 0);
+    // Thursday in current week decides the year.
+    firstThursday_copy.setDate(firstThursday_copy.getDate() + 3 - (firstThursday_copy.getDay() + 6) % 7);
+    // January 4 is always in week 1.
+    var week1 = new Date(firstThursday_copy.getFullYear(), 0, 4);
+    // Adjust to Thursday in week 1 and count number of weeks from date to week1.
+    var fistThurstday_kw = 1 + Math.round(((firstThursday_copy.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+
+    //Check Kalenderwoche vom Karfreitag
+    var karfreitag_copy = new Date(karfreitag);
+    karfreitag_copy.setHours(0, 0, 0, 0);
+    // Thursday in current week decides the year.
+    karfreitag_copy.setDate(karfreitag_copy.getDate() + 3 - (karfreitag_copy.getDay() + 6) % 7);
+    // January 4 is always in week 1.
+    var week1 = new Date(karfreitag_copy.getFullYear(), 0, 4);
+    // Adjust to Thursday in week 1 and count number of weeks from date to week1.
+    var karfreitag_kw = 1 + Math.round(((karfreitag_copy.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+
+    let naefelserfahrt = (fistThurstday_kw === karfreitag_kw) ? (firstThursday.addDays(7)) : firstThursday; // Tage bis Donnerstag
+
+    //*******************END*******************
+
+    feiertage_ut.push({ titel: "Neujahr", datum: +new Date(jahresbegin) });
+    feiertage_ut.push({ titel: "Berchtoldstag", datum: +new Date(berchtoldstag) });
+    feiertage_ut.push({ titel: "Karfreitag", datum: +new Date(karfreitag) });
+    feiertage_ut.push({ titel: "Näfelserfahrt", datum: +new Date(naefelserfahrt) });
+    feiertage_ut.push({ titel: "Ostermontag", datum: +new Date(ostermontag) });
+    feiertage_ut.push({ titel: "Auffahrt", datum: +new Date(auffahrt) });
+    feiertage_ut.push({ titel: "Pfingstmontag", datum: +new Date(pfingstmontag) });
+    feiertage_ut.push({ titel: "Nationalfeiertag", datum: +new Date(nationalfeiertag) });
+    feiertage_ut.push({ titel: "Allerheiligen", datum: +new Date(allerheiligen) });
+    feiertage_ut.push({ titel: "Weinachten", datum: +new Date(weinachten) });
+    feiertage_ut.push({ titel: "Stephanstag", datum: +new Date(stephanstag) });
+    feiertage_ut.sort((a, b) => a.datum - b.datum);
+    let feiertage = feiertage_ut.map((key, value) => {
+        var options = { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' };
+        var feiertage = new Date(feiertage_ut[value].datum)
+        var feiertage_string = feiertage.toLocaleDateString("de-CH", options).replace(',', '');
+        return { titel: feiertage_ut[value].titel, datum: feiertage_string };
+    });
+
+    global.set("feiertage", feiertage);
+    context.set("feiertage", feiertage_ut);
+    context.set("year", year);
+    checkHolidays();
+    return;
+}
+
+function checkHolidays() {
+
+    let day = Math.floor(((date_ut - newyear_ut) / 86400000));
+    let feiertage_ut = context.get("feiertage");
+    let feiertage = global.get("feiertage");
+    const today = (element) => element.datum === date_ut;
+    let feiertage_match = feiertage_ut.findIndex(today);
+
+    const future = (element) => element.datum > date_ut;
+    let future_match = feiertage_ut.findIndex(future);
+    future_match = future_match === -1 ? 11 : future_match;
+
+    node.send([null, { payload: feiertage, today: feiertage_match, future: future_match }, null], false);
+
+    let ostern = context.get("Ostersonntag");
+    ostern = Math.floor(((ostern - newyear_ut) / 86400000));
+
+    const nfahrt_days = (key) => key.titel === "Näfelserfahrt";
+    let nfahrt = feiertage_ut.find(nfahrt_days);
+    nfahrt = nfahrt.datum;
+    nfahrt = Math.floor(((nfahrt - newyear_ut) / 86400000));
+
+    context.set("today_number", day);
+
+    switch (day) {
+        case 0:
+            node.warn("Neujahr");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;           // Neujahr
+        case 1:
+            node.warn("Berchtoldstag");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;            // Berchtoldstag
+        case 211 + sj:
+            node.warn("Nationalfeiertag");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;       // Nationalfeiertag
+        case 304 + sj:
+            node.warn("Allerheiligen");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;      // Allerheiligen
+        case 358 + sj:
+            node.warn("Weinachten");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;     // Weinachten
+        case 359 + sj:
+            node.warn("Stephanstag");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;      // Stephanstag
+        case ostern - 2:
+            node.warn("Karfreitag");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;   // Karfreitag
+        case ostern + 1:
+            node.warn("Ostermontag");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;   // Ostermontag
+        case ostern + 39:
+            node.warn("Auffahrt");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;    // Auffahrt
+        case ostern + 50:
+            node.warn("Pfingstmontag");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;   // Pfingstmontag
+        case nfahrt:
+            node.warn("Näfelserfahrt");
+            var holiday = true;
+            auswertung(holiday, open);
+            break;   // Näfelserfahrt
+        default:
+            var holiday = false;
+            auswertung(holiday, open);
+            break;
+    }
+    return;
+
+}
+
+
+function auswertung(holiday, open) {
+
+    flow.set('arealtore.info', { 'dooropening': open, 'holiday': holiday });
+    msg = {};
+    if (open === true && holiday === false) {
+        var soll = true;
+    } else {
+        var soll = false;
+    }
+    node.send([{ payload: soll }, null, { status: soll }], false);
+    return;
+}
